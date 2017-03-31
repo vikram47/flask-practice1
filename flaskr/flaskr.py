@@ -1,14 +1,12 @@
 import os
-import sqlite3
 from flask import Flask, request, session, g, redirect, url_for, abort, render_template, flash
+from cassandra.cluster import Cluster
 
 app = Flask(__name__)  # create the application instance
 
 app.config.from_object(__name__)  # load config from this file , flaskr.py
 
 app.config.update(dict(
-    DATABASE=os.path.join(app.root_path, 'flaskr.db'),
-    SECRET_KEY='development key',
     USERNAME='admin',
     PASSWORD='secret'
 ))
@@ -62,9 +60,9 @@ def logout():
 def connect_db():
     """Connects to the specific database."""
     print('Inside connect_db.')
-    rv = sqlite3.connect(app.config['DATABASE'])
-    rv.row_factory = sqlite3.Row
-    return rv
+    cluster = Cluster()
+    session = cluster.connect('flaskr')
+    return session
 
 
 def init_db():
@@ -84,18 +82,18 @@ def initdb_command():
 def get_db():
     """Opens a new database connection if there is none yet for the current application context."""
     print('Inside get_db.')
-    if not hasattr(g, 'sqlite_db'):
-        g.sqlite_db = connect_db()
-    return g.sqlite_db
+    if not hasattr(g, 'cassandra_db'):
+        g.cassandra_db = connect_db()
+    return g.cassandra_db
 
 
 @app.teardown_appcontext
 def close_db(error):
     """Closes the database again at the end of the request."""
     print('Inside close_db.')
-    if hasattr(g, 'sqlite_db'):
-        g.sqlite_db.close()
+    if hasattr(g, 'cassandra_db'):
+        g.cassandra_db.cluster.shutdown()
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=6000)
