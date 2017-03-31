@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block body %}
 {% if session.logged_in %}
-<form action="{{ url_for('add_entry') }}" method="post" class="add-entry">
+<form action="{{ url_for('add_entry') }}" method="post" class="add-note">
     <dl>
         <dt>Title:
         <dd><input type="text" size="30" name="title">
@@ -12,10 +12,10 @@
 </form>
 {% endif %}
 <ul class="entries">
-    {% for entry in entries %}
-    <li><h2>{{ entry.title }}</h2>{{ entry.text|safe }}</li>
+    {% for note in notes %}
+    <li><h2>{{ note.title }}</h2>{{ note.text|safe }}</li>
     {% else %}
-    <li><em>Unbelievable. No entries here so far</em></li>
+    <li><em>Unbelievable. No notes here so far</em></li>
     {% endfor %}
 </ul>
 {% endblock %}

@@ -1,12 +1,15 @@
 import os
 from flask import Flask, request, session, g, redirect, url_for, abort, render_template, flash
 from cassandra.cluster import Cluster
+import cassandra
+import uuid
 
 app = Flask(__name__)  # create the application instance
 
 app.config.from_object(__name__)  # load config from this file , flaskr.py
 
 app.config.update(dict(
+    SECRET_KEY='development key',
     USERNAME='admin',
     PASSWORD='secret'
 ))
@@ -18,9 +21,8 @@ app.config.from_envvar('FLASKR_SETTINGS', silent=True)
 @app.route('/')
 def show_entries():
     db = get_db()
-    cur = db.execute('SELECT title, text FROM entries ORDER BY id DESC')
-    entries = cur.fetchall()
-    return render_template('show_entries.html', entries=entries)
+    notes = db.execute('SELECT title, text FROM notes')
+    return render_template('show_entries.html', notes=notes)
 
 
 @app.route('/add', methods=['POST'])
@@ -28,8 +30,8 @@ def add_entry():
     if not session.get('logged_in'):
         abort(401)
     db = get_db()
-    db.execute('INSERT INTO entries (title, text) VALUES (?, ?)', [request.form['title'], request.form['text']])
-    db.commit()
+    db.execute('INSERT INTO notes (id, title, text) VALUES (%s, %s, %s)', [uuid.uuid1(),
+                                                                           request.form['title'], request.form['text']])
     flash('New entry was successfully posted')
     return redirect(url_for('show_entries'))
 
@@ -66,10 +68,31 @@ def connect_db():
 
 
 def init_db():
-    db = get_db()
-    with app.open_resource('schema.sql', mode='r') as f:
-        db.cursor().executescript(f.read())
-    db.commit()
+    try:
+        cluster = Cluster()
+        session = cluster.connect()
+        print('Creating Keyspace flaskr..')
+        cql_command = """CREATE KEYSPACE flaskr WITH
+        REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };"""
+        session.execute(cql_command)
+        try:
+            session.execute(cql_command)
+            print('Keyspace flaskr created.')
+        except cassandra.AlreadyExists as e:
+            print("Keyspace already exists")
+            pass
+
+        try:
+            session.set_keyspace('flaskr')
+            print('Creating table notes..')
+            cql_command = """CREATE TABLE notes (id uuid PRIMARY KEY,title varchar,text varchar);"""
+            session.execute(cql_command)
+            print('Table notes created.')
+        except cassandra.AlreadyExists as e:
+            print("Table already exists")
+
+    except Exception as e:
+        print('Could not connect to DB', e)
 
 
 @app.cli.command('initdb')
@@ -96,4 +119,4 @@ def close_db(error):
 
 
 if __name__ == '__main__':
-    app.run(port=6000)
+    app.run()
